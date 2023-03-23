@@ -1,2 +1,2 @@
 # Packup
-# Intended to be run by cron
+LIGHTWEIGHT (AND PRIMITIVE) BACKUP TOOL INTENDED TO BE RUN BY CRON
