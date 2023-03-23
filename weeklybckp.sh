@@ -10,11 +10,11 @@ logdate=$(date +%d-%m-%Y)
 
 #////////////////////////////////////
 # VARS (Modify accordingly)
-backuppath="/var/backups/pendragon"
-logpath="/home/pendragon"
-# Enter files/folders separates by a space
-files="/etc/ /home/pendragon/" # Enter files/folders separated by a space
-compressionlvl="6" # Where 0 is no compression and 9 is maximum compression (6 is default)
+	backuppath="/var/backups/pendragon"
+	logpath="/home/pendragon"
+	# Enter files/folders separates by a space
+	files="/etc/ /home/pendragon/" # Enter files/folders separated by a space
+	compressionlvl="6" # Where 0 is no compression and 9 is maximum compression (6 is default)
 #////////////////////////////////////
 
 # Start script
