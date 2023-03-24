@@ -30,6 +30,7 @@ zip -r -$compressionlvl $backuppath/pdgbackup_$dirname.zip $files &> $logpath/te
 
 if [ $? -eq 0 ]; then
     echo "[ $logdate ]: pdgbackup_$dirname.zip was created in $backuppath" >> $logpath/backups.log
+    chmod 600 pdgbackup_$dirname.zip
 else
     echo "[ $logdate ]: Backup exited with errors and the zipfile was deleted :(" >> $logpath/backups.log
     if [ -f $backuppath/pdgbackup_$dirname.zip ]; then
