@@ -18,20 +18,30 @@ logdate=$(date +%d-%m-%Y)
 #////////////////////////////////////
 
 # Start script
+if ! which zip >/dev/null; then
+	apt install zip -y
+	echo "[ $logdate ]: zip was automatically installed" >> $logpath/backups.log
+fi
 if [ ! -d $backuppath ]; then
 	mkdir -p $backuppath
     exit
 fi
 
-# Add below the folders/files you want to back up. In this case /etc/ and /home/pendragon/. Change compression level by adjusting the number "1-9"
-    zip -r -$compressionlvl $backuppath/pdgbackup_$dirname.zip $files &> /dev/null
+zip -r -$compressionlvl $backuppath/pdgbackup_$dirname.zip $files &> $logpath/temp_backups_error.log
 
-    if [ $? -eq 0 ]; then
-        echo "[ $logdate ]: pdgbackup_$dirname.zip was created in $backuppath" >> $logpath/backups.log
-    else
-        echo "[ $logdate ]: Backup exited with errors and the zipfile was deleted :(" >> $logpath/backups.log
-	if [ -f $backuppath/pdgbackup_$dirname.zip ]; then
-            rm -rf $backuppath/pdgbackup_$dirname.zip
-        fi
+if [ $? -eq 0 ]; then
+    echo "[ $logdate ]: pdgbackup_$dirname.zip was created in $backuppath" >> $logpath/backups.log
+else
+    echo "[ $logdate ]: Backup exited with errors and the zipfile was deleted :(" >> $logpath/backups.log
+    if [ -f $backuppath/pdgbackup_$dirname.zip ]; then
+        rm -rf $backuppath/pdgbackup_$dirname.zip
     fi
-exit 0
+    if [ -s $logpath/temp_backups_error.log ]; then
+        echo "Encountered the following errors:" >> $logpath/backups.log
+        grep "zip warning:" $logpath/temp_backups_error.log >> $logpath/backups.log
+	echo ""
+    fi
+    if [ -f $logpath/temp_backups_error.log ]; then
+        rm -f $logpath/temp_backups_error.log
+    fi
+fi
