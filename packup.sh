@@ -41,9 +41,9 @@ if [ $remotebackuppath = "true" ]; then
 		if [ ! -d $mountpath ]; then
 			mkdir -p $mountpath
 			chown root:root $mountpath
-			chmod 777 $mountpath
+			chmod 600 $mountpath #IF NOT WORKING, SWITCH TO 777...
 		fi
-		mount -t cifs $backuppath $mountpath -o credentials=/home/julio/Packup/ales.txt  # username=smbuser
+		mount -t cifs $backuppath $mountpath -o credentials=/home/julio/Packup/ales.txt #CHANGE CREDS LOCATION TO VARIABLE
 		sleep 1 #Should work without this line
 	else
 		echo "The credentials file (ales.txt) was not found :( Exiting script"
@@ -89,9 +89,9 @@ else
 
 fi
 
-#if [ $remotebackuppath = "true" ]; then
-#		umount $mountpath
-#fi
+if [ $remotebackuppath = "true" ]; then
+		umount $mountpath
+fi
 	# Check for backups older than 3 months inside $backuppath and delete them
 	# find $backuppath -type f -mtime +90 -exec rm -f {} \;
 exit
