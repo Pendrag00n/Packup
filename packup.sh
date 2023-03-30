@@ -6,7 +6,7 @@
 #
 
 #//////////////////////////////
-#		CONFIGURATION
+#	CONFIGURATION
 #    (Modify accordingly)
 
 	backuppath="//192.168.1.2/share" # Path where the backup will be stored
@@ -43,7 +43,8 @@ if [ $remotebackuppath = "true" ]; then
 			chown root:root $mountpath
 			chmod 600 $mountpath
 		fi
-		mount -t cifs $backuppath $mountpath -o credentials=ales.txt
+		SCRIPT_DIR=$(dirname "$(readlink -f "$0")")
+		mount -t smbclient $backuppath $mountpath -o credentials=$SCRIPT_DIR/ales.txt
 		sleep 4 #Should work without this line
 	else
 		echo "The credentials file (ales.txt) was not found :( Exiting script"
