@@ -9,12 +9,12 @@
 #	CONFIGURATION
 #    (Modify accordingly)
 
-	backuppath="//192.168.1.2/share" # Path where the backup will be stored
+	backuppath="//192.168.1.2/share/packup" # Path where the backup will be stored
 		remotebackuppath="true" # Set to true if you are backing up to a remote path
-		mountpath="/tmp/packup" # Only used if remotebackuppath is set to true
+		mountpath="/home/julio/packuptmp" # Only used if remotebackuppath is set to true
 	logpath="/home/julio" # Path to the log file
 	files="/etc/" # Enter files/folders separated by a space
-	compressionlvl="4" # Where 1 is no compression and 9 is maximum compression (6 is default)
+	#compressionlvl="4" # NOT WORKING FOR SOME REASON. Where 1 is no compression and 9 is maximum compression (6 is default)
 
 #///////////////////////////////
 
@@ -41,11 +41,10 @@ if [ $remotebackuppath = "true" ]; then
 		if [ ! -d $mountpath ]; then
 			mkdir -p $mountpath
 			chown root:root $mountpath
-			chmod 600 $mountpath
+			chmod 777 $mountpath
 		fi
-		SCRIPT_DIR=$(dirname "$(readlink -f "$0")")
-		mount -t smbclient $backuppath $mountpath -o credentials=$SCRIPT_DIR/ales.txt
-		sleep 4 #Should work without this line
+		mount -t cifs $backuppath $mountpath -o credentials=/home/julio/Packup/ales.txt  # username=smbuser
+		sleep 1 #Should work without this line
 	else
 		echo "The credentials file (ales.txt) was not found :( Exiting script"
 		echo "[ $logdate ]: The credentials file (ales.txt) was not found :( Exiting script" >> $logpath/backups.log
@@ -59,25 +58,28 @@ if [ $? -ne 0 ]; then
 	exit
 fi
 
-# zip -r -$compressionlvl $backuppath/packup_$dirname.zip $files &> $logpath/temp_backups_error.log
-tar -czf -$compressionlvl $backuppath/packup_$dirname.tar.gz $files &> $logpath/temp_backups_error.log
-
+if [ $remotebackuppath = "true" ]; then
+	tar -cf $mountpath/packup_$dirname.tar.gz $files &> $logpath/temp_backups_error.log
+	backuppath=$mountpath
+else
+	tar -cf $backuppath/packup_$dirname.tar.gz $files &> $logpath/temp_backups_error.log
+fi
 
 if [ $? -eq 0 ]; then
-	echo "packup_$dirname.zip was created in $backuppath (Took $SECONDS seconds and weighs $(du -sh $backuppath/packup_$dirname.zip | awk '{print $1}') )"
-	echo "[ $logdate ]: packup_$dirname.zip was created in $backuppath (Took $SECONDS seconds and weighs $(du -sh $backuppath/packup_$dirname.zip | awk '{print $1}'))" >> $logpath/backups.log
-	chmod 600 $backuppath/packup_$dirname.zip
+	echo "packup_$dirname.tar.gz was created in $backuppath (Took $SECONDS seconds and weighs $(du -sh $backuppath/packup_$dirname.tar.gz | awk '{print $1}') )"
+	echo "[ $logdate ]: packup_$dirname.tar.gz was created in $backuppath (Took $SECONDS seconds and weighs $(du -sh $backuppath/packup_$dirname.tar.gz | awk '{print $1}'))" >> $logpath/backups.log
+	chmod 600 $backuppath/packup_$dirname.tar.gz
 else
 	echo "Backup exited with errors and the zipfile was deleted :("
-	echo "[ $logdate ]: Backup exited with errors and the zipfile was deleted :(" >> $logpath/backups.log
+	echo "[ $logdate ]: Backup exited with errors and the tarfile was deleted :(" >> $logpath/backups.log
 
-	if [ -f $backuppath/packup_$dirname.zip ]; then
-        	rm -rf $backuppath/packup_$dirname.zip
+	if [ -f $backuppath/packup_$dirname.tar.gz ]; then
+        	rm -rf $backuppath/packup_$dirname.tar.gz
 	fi
 
 	if [ -s $logpath/temp_backups_error.log ]; then
 		echo "Encountered the following errors:" >> $logpath/backups.log
-		grep "zip warning:" $logpath/temp_backups_error.log >> $logpath/backups.log
+		cat $logpath/temp_backups_error.log >> $logpath/backups.log
 		echo "" >> $logpath/backups.log
 	fi
 
@@ -87,9 +89,9 @@ else
 
 fi
 
-if [ $remotebackuppath = "true" ]; then
-		umount $mountpath
-fi
-# Check for backups older than 3 months inside $backuppath and delete them
-# find $backuppath -type f -mtime +90 -exec rm -f {} \;
+#if [ $remotebackuppath = "true" ]; then
+#		umount $mountpath
+#fi
+	# Check for backups older than 3 months inside $backuppath and delete them
+	# find $backuppath -type f -mtime +90 -exec rm -f {} \;
 exit
