@@ -50,8 +50,6 @@ if ! which tar >/dev/null; then
     echo "[ $logdate ]: tar was surprisingly not installed and was automatically installed" >> $logpath/backups.log
 fi
 
-
-
 # Test credentials file (ales.txt) and mount backup path
 if [ $remotebackuppath = "true" ]; then
     if [ -f ales.txt ]; then
@@ -69,8 +67,7 @@ if [ $remotebackuppath = "true" ]; then
         echo "[ $logdate ]: The credentials file (ales.txt) was not found :( Exiting script" >> $logpath/backups.log
         exit 2
     fi
-    
-    
+      
     if ! mount -t cifs $backuppath $mountpath -o credentials=$PWD/ales.txt;
     then
         echo "The remote path could not be mounted :( Exiting script"
@@ -110,8 +107,7 @@ else
     
     if [ -f $logpath/temp_backups_error.log ]; then
         rm -f $logpath/temp_backups_error.log
-    fi
-    
+    fi  
 fi
 
 if [ $remotebackuppath = "true" ]; then
