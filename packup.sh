@@ -36,8 +36,8 @@ for file in $files; do
     if ! test -e "$file"; then
         echo "ERROR: $file can't be located. Exiting script" >> $logpath/backups.log
         echo "ERROR: $file can't be located. Exiting script"
+        exit 2
     fi
-    exit 2
 done
 
 dirname=$(date +%d-%m-%Y_%H-%M-%S)
