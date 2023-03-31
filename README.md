@@ -2,7 +2,8 @@
 LIGHTWEIGHT BACKUP TOOL INTENDED TO BE RUN BY CRON (CAN ALSO BE RUN MANUALLY)
 
 ## USAGE
-* If being run manually, modify the variables inside the script according to your needs and execute `sudo bash packup.sh` 
+* If being run manually, modify the variables inside the script according to your needs and execute:
+`sudo bash packup.sh` 
 
 or
 
