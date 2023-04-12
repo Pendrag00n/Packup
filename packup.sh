@@ -11,13 +11,11 @@
 #    (Modify accordingly)
 
 backuppath="/var/packup" # Path where the backup will be stored. You can use a remote path by using the format //ip/share
-# remotebackuppath="false" # Set to true only if you are backing up to a remote path
-mountpath="/home/$SUDO_USER/packuptmp" # This variable is only used if remotebackuppath is set to true
 logpath="/home/$SUDO_USER" # Path to the log file
 files="/etc/ /home/$SUDO_USER/Documents/" # Enter files/folders separated by a space
+    mountpath="/home/$SUDO_USER/packuptmp" # This variable is only used if backup up to a remote location
 
 #///////////////////////////////
-
 
 # Variables used for formatting the time and date
 dirname=$(date +%d-%m-%Y_%H-%M-%S)
