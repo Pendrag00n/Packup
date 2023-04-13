@@ -13,7 +13,9 @@
 backuppath="/var/packup" # Path where the backup will be stored. You can use a remote path by using the format //ip/share
 logpath="/home/$SUDO_USER" # Path to the log file
 files="/etc/ /home/$SUDO_USER/Documents/" # Enter files/folders separated by a space
+    # Remote backup variables:
     mountpath="/home/$SUDO_USER/packuptmp" # This variable is only used if backup up to a remote location
+    mountport="445" # Default SMB/CIFS port
 
 #///////////////////////////////
 
@@ -61,6 +63,16 @@ if [ $remotebackuppath = "true" ]; then
     if [ -f ales.txt ]; then
         chown root:root ales.txt
         chmod 600 ales.txt
+        #Test if the IP provided has port 445 enabled
+            IP=$(echo $backuppath | cut -d/ -f3)
+            echo "Testing if share is up on port 445..."
+            if echo "Q" | nc -w 5 $IP $mountport >/dev/null; then
+                echo "Share is up on port $mountport !"
+            else
+                echo "Error: Share is doesn't see to be up on port $mountport :( Exiting script..."
+                exit 1
+            fi
+        
         if [ ! -d $mountpath ]; then
             mkdir -p $mountpath
             chown root:root $mountpath
