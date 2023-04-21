@@ -39,11 +39,11 @@ if [ ${backuppath: -1} = "/" ]; then
     backuppath=${backuppath::-1}
 fi
 # If $mountpath ends with a /, remove it
-if [ "${mountpath: -1}" = "/" ]; then
+if [ ${mountpath: -1} = "/" ]; then
     mountpath=${mountpath::-1}
 fi
 # If $logpath ends with a /, remove it
-if [ "${logpath: -1}" = "/" ]; then
+if [ ${logpath: -1} = "/" ]; then
     logpath=${logpath::-1}
 fi
 
@@ -183,7 +183,7 @@ elif [ "$failed" = "true" ]; then
 fi
 
 # If the remote backup path is mounted, unmount it
-if [ "$remothebackuppath" = "true"]; then
+if [ "$remothebackuppath" = "true" ]; then
     if [ "$unmountwhenfinished" = "true" ]; then
         if mount | grep -q "$backuppath .*$mountpath"; then
             umount "$mountpath"
