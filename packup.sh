@@ -29,6 +29,7 @@ dirname=$(date +%d-%m-%Y_%H-%M-%S)
 logdate=$(date +%d-%m-%Y)
 
 #If $backuppath starts with // then set $remotebackuppath to true
+remotebackuppath="false"
 if [ ${backuppath:0:2} = "//" ]; then
     remotebackuppath="true"
 fi
@@ -149,7 +150,7 @@ else
     fi
 fi
 
-# 
+# Give information about the backup success or failure, set correct permissions and clean up 
 if [ "$failed" = "false" ]; then
     chmod $backuppermission "$backuppath"/packup_"$dirname".tar.gz
     echo "packup_$dirname.tar.gz was created in $backuppath (Took $SECONDS seconds and weighs $(du -sh "$backuppath"/packup_"$dirname".tar.gz | awk '{print $1}') )"
@@ -159,7 +160,7 @@ if [ "$failed" = "false" ]; then
 elif [ "$failed" = "true" ]; then
     echo "Backup exited with errors and the zipfile was deleted :("
     echo "[ $logdate ]: Backup exited with errors and the tarfile was deleted :(" >> "$logpath"/$logfile
-   #echo "BACKUP FAILED!" | mail -s "Backup has failed! Check $logpath/$logfile for the full log!" mail@example.com
+   #echo "Backup has failed! Check $logpath/$logfile for the full log!" | mail -s "BACKUP FAILED!" mail@example.com
     
     # Remove incomplete backup
     if [ -f "$backuppath"/packup_"$dirname".tar.gz ]; then
@@ -182,16 +183,16 @@ elif [ "$failed" = "true" ]; then
 fi
 
 # If the remote backup path is mounted, unmount it
-if [ "$unmountwhenfinished" = "true" ]; then
-    if mount | grep -q "$backuppath .*$mountpath"; then
-        umount "$mountpath"
-        echo "Unmounted remote path successfully"
-    else
-        echo "Remote path seems to be unmounted already... Skipping unmounting"
+if [ "$remothebackuppath" = "true"]; then
+    if [ "$unmountwhenfinished" = "true" ]; then
+        if mount | grep -q "$backuppath .*$mountpath"; then
+            umount "$mountpath"
+            echo "Unmounted remote path successfully"
+        else
+            echo "Remote path seems to be unmounted already... Skipping unmounting"
+        fi
     fi
 fi
-# if "remotebackuppath" = "true" and "mount | grep -q "$backuppath .*$mountpath"" returns a string then run "umount $mountpath"
-
 
 # Check for backups older than 3 months inside $backuppath and delete them
 # DANGEROUS! UNCOMMENT WITH CAUTION AND AT YOUR OWN RISK (I take no responsibility for any data loss)
