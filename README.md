@@ -2,12 +2,12 @@
 LIGHTWEIGHT BACKUP TOOL INTENDED TO BE RUN BY CRON (CAN ALSO BE RUN MANUALLY)
 
 ## USAGE
-* If being run manually, modify the variables inside the script according to your needs and execute:
+Running manually
+- Modify the variables inside the script according to your needs and execute:
 `sudo bash packup.sh` 
 
-or
-
-* Store the script (alongside *.ales.txt* if needed) inside a folder used for cron scripts (or dont), for example, */usr/scripts/*.
+- Running from cron
+* Store the script (alongside *ales.txt* if needed for remote backups) inside a folder used for cron scripts (or dont), for example, */usr/scripts/*.
 * Modify the variables inside the script according to your needs.
 * Open root's crontab by running `sudo crontab -e` (Running this as another user WILL cause the backup to fail due to permissions issues).
 * Configure the scheduled job to run the script. For example: 
