@@ -138,14 +138,14 @@ fi
 # Do the backup and determine if it failed or not
 failed="false"
 if [ "$remotebackuppath" = "true" ]; then
-    tar -cpf "$mountpath"/packup_"$dirname".tar.gz "$files" &> "$logpath"/temp_backups_error.log
+    tar -czpf "$mountpath"/packup_"$dirname".tar.gz "$files" &> "$logpath"/temp_backups_error.log
     backuppath=$mountpath
-    if ! tar -cpf "$mountpath"/packup_"$dirname".tar.gz "$files"; then
+    if ! tar -czpf "$mountpath"/packup_"$dirname".tar.gz "$files"; then
         failed="true"
     fi
 else
-    tar -cpf "$backuppath"/packup_"$dirname".tar.gz "$files" &> "$logpath"/temp_backups_error.log
-    if ! tar -cpf "$backuppath"/packup_"$dirname".tar.gz "$files"; then
+    tar -czpf "$backuppath"/packup_"$dirname".tar.gz "$files" &> "$logpath"/temp_backups_error.log
+    if ! tar -czpf "$backuppath"/packup_"$dirname".tar.gz "$files"; then
         failed="true"
     fi
 fi
