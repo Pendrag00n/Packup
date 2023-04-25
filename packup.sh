@@ -56,7 +56,7 @@ fi
 
 # Test if boolean variables are set to true or false
 if [ "$incremental" = "true" ]; then
-    dirname="packup_inc"
+    dirname="inc"
 elif ! [ "$incremental" = "false" ]; then
     echo "ERROR: $incremental is not a valid value for incremental (true/false). Exiting script..." >>"$logpath"/$logfile
     echo "ERROR: $incremental is not a valid value for incremental (true/false). Exiting script..."
@@ -202,8 +202,8 @@ fi
 failed="false"
 if [ "$remotebackuppath" = "true" ]; then
     if [ "$incremental" = "true" ]; then
-        rsync -avz --backup --backup-dir="$mountpath" "$files" "$mountpath"/"$dirname".tgz
-        if ! rsync -avz --backup --backup-dir="$mountpath" "$files" "$mountpath"/"$dirname".tgz; then
+        rsync -avz --backup --quiet --backup-dir="$mountpath" "$files" "$mountpath"/packup_"$dirname".tgz 2>"$logpath"/temp_backups_error.log
+        if ! rsync -avz --backup --quiet --backup-dir="$mountpath" "$files" "$mountpath"/packup_"$dirname".tgz; then
             failed="true"
         fi
     else
@@ -215,8 +215,8 @@ if [ "$remotebackuppath" = "true" ]; then
     fi
 else
     if [ "$incremental" = "true" ]; then
-        rsync -avz --backup --backup-dir="$backuppath" "$files" "$backuppath"/"$dirname".tgz
-        if ! rsync -avz --backup --backup-dir="$backuppath" "$files" "$backuppath"/"$dirname".tgz; then
+        rsync -avz --quiet --backup --backup-dir="$backuppath" "$files" "$backuppath"/packup_"$dirname".tgz 2>"$logpath"/temp_backups_error.log
+        if ! rsync -avz --quiet --backup --backup-dir="$backuppath" "$files" "$backuppath"/packup_"$dirname".tgz; then
             failed="true"
         fi
     else
