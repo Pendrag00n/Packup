@@ -278,12 +278,12 @@ fi
 # Give information about the backup success or failure, set correct permissions and clean up
 if [ "$failed" = "false" ]; then
     chmod $backuppermission "$backuppath"/packup_"$dirname".tgz
-    echo "packup_$dirname.tgz was created in $backuppath (Took $SECONDS seconds and weighs $(du -sh "$backuppath"/packup_"$dirname".tgz | awk '{print $1}') )"
+    echo "packup_$dirname.tgz was created in $backuppath (Took $SECONDS seconds and weighs $(du -sh "$backuppath"/packup_"$dirname".tgz | awk '{print $1}'))"
     echo "[ $logdate ]: packup_$dirname.tgz was created in $backuppath (Took $SECONDS seconds and weighs $(du -sh "$backuppath"/packup_"$dirname".tgz | awk '{print $1}'))" >>"$logpath"/$logfile
     chown root:root "$backuppath"/packup_"$dirname".tgz
     chmod 600 "$backuppath"/packup_"$dirname".tgz
     if [ "$sendonsuccess" = "true" ]; then
-        echo "Backup has finished successfully on $(date | cut -d " " -f 1-4)! Took $SECONDS seconds and weighs $(du -sh "$backuppath"/packup_"$dirname".tgz | awk '{print $1}') ) " | mail -s "Backup Finished!" "$destination"
+        echo "Backup has finished successfully on $(date | cut -d " " -f 1-4)! Took $SECONDS seconds and weighs $(du -sh "$backuppath"/packup_"$dirname".tgz | awk '{print $1}')) " | mail -s "Backup Finished!" "$destination"
     fi
 elif [ "$failed" = "true" ]; then
     echo "Backup exited with errors and the zipfile was deleted (Compression failed) :("
