@@ -1,5 +1,5 @@
 # Packup
-LIGHTWEIGHT BACKUP TOOL INTENDED TO BE RUN BY CRON (CAN ALSO BE RUN MANUALLY)
+LIGHTWEIGHT BACKUP [SCRIPT](https://raw.githubusercontent.com/Pendrag00n/Packup/main/packup.sh) INTENDED TO BE RUN BY CRON (CAN ALSO BE RUN MANUALLY)
 
 ## USAGE
 **Running manually**
