@@ -244,7 +244,8 @@ fi
 failed="false"
 if [ -n "$restartservices" ]; then
     systemctl stop "$restartservices"
-elif [ "$remotebackuppath" = "true" ]; then
+fi
+if [ "$remotebackuppath" = "true" ]; then
     if [ "$incremental" = "true" ]; then
         rsync -av --backup --quiet --backup-dir="$mountpath" "${files[@]}" "$mountpath"/packup_"$dirname".tgz 2>"$logpath"/temp_backups_error.log
         if ! rsync -avz --backup --quiet --backup-dir="$mountpath" "${files[@]}" "$mountpath"/packup_"$dirname".tgz; then
