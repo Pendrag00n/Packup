@@ -16,16 +16,16 @@
 #     (Modify accordingly)
 
 # General variables:
-backuppath="/var/packup"                  # Path where the backup will be stored. You can use a remote path by using the format //ip/share
-logpath="/home/$SUDO_USER"                # Path to the log file
-logfile="packup.log"                      # Name of the log file
+backuppath="/var/packup"                 # Path where the backup will be stored. You can use a remote path by using the format //ip/share
+logpath="/home/$SUDO_USER"               # Path to the log file
+logfile="packup.log"                     # Name of the log file
 files=(/etc /home/$SUDO_USER/Documents/) # Enter files/folders separated by a space
-backuppermission="0600"                   # Permission of the backup file (Use 4 digits)
+backuppermission="0600"                  # Permission of the backup file (Use 4 digits)
 
 # Incremental backup variables:
 incremental="false" # If set to true, the backup will be incremental and will use rsync instead of tar
 
-# Send email when something goes wrong: (Make sure you have correctly set up a MTA on your system)
+# Send email when something goes wrong: (Make sure you have correctly set up a MTA on your system. Ex: https://www.tutorialspoint.com/configure-postfix-to-use-gmail-smtp-on-ubuntu)
 sendemail="false"                  # If set to true, an email will be sent when something goes wrong
 destination="receiver@example.com" # Email address where the email will be sent
 subject="BACKUP FAILED!"           # Subject of the email
@@ -93,7 +93,7 @@ if [ ${logpath: -1} = "/" ]; then
 fi
 
 # Check if the files exist
-for file in ${files[@]}; do
+for file in "${files[@]}"; do
     if ! test -e "$file"; then
         echo "ERROR: $file can't be located. Exiting script" >>"$logpath"/$logfile
         echo "ERROR: $file can't be located. Exiting script"
@@ -114,17 +114,57 @@ if [ "$deleteoldbackups" = "true" ] && ! [[ $olderthan =~ ^[0-9]+$ ]] && test $o
     exit 2
 fi
 
+# Check system packet manager
+if which apt >/dev/null; then
+    install="apt install -y"
+elif which yum >/dev/null; then
+    install="yum install -y"
+elif which dnf >/dev/null; then
+    install="dnf install -y"
+elif which zypper >/dev/null; then
+    install="zypper install -y"
+elif which pacman >/dev/null; then
+    install="pacman -A --noconfirm"
+elif which apk >/dev/null; then
+    install="apk add --no-cache"
+elif which emerge >/dev/null; then
+    install="emerge -y"
+else
+    echo "ERROR: No packet manager found. Exiting script..." >>"$logpath"/$logfile
+    echo "ERROR: No packet manager found. Exiting script..."
+    if [ $sendemail = "true" ]; then
+        echo "Backup has failed! (No packet manager found) Check $logpath/$logfile for the full log" | mail -s "$subject" "$destination"
+    fi
+    exit 2
+fi
+
 # Check if tar is installed
-if ! which tar >/dev/null; then
+if [ "$incremental" = "false" ] && ! which tar >/dev/null; then
     echo "tar was not installed and is being installed now"
-    apt install tar -y
+    $install tar
+    if ! $install tar; then
+        echo "ERROR: tar could not be installed. Exiting script..." >>"$logpath"/$logfile
+        echo "ERROR: tar could not be installed. Exiting script..."
+        if [ $sendemail = "true" ]; then
+            echo "Backup has failed! (tar could not be installed) Check $logpath/$logfile for the full log!" | mail -s "$subject" "$destination"
+        fi
+        exit 2
+    fi
     echo "[ $logdate ]: tar was not installed and was automatically installed" >>"$logpath"/$logfile
 fi
 
 # Check if rsync is installed
 if [ "$incremental" = "true" ] && ! which rsync >/dev/null; then
     echo "rsync was not installed and is being installed now"
-    apt install rsync -y
+    $install rsync
+    if ! $install rsync; then
+        echo "ERROR: rsync could not be installed. Exiting script..." >>"$logpath"/$logfile
+        echo "ERROR: rsync could not be installed. Exiting script..."
+        if [ $sendemail = "true" ]; then
+            echo "Backup has failed! (rsync could not be installed) Check $logpath/$logfile for the full log!" | mail -s "$subject" "$destination"
+        fi
+        exit 2
+    fi
     echo "[ $logdate ]: rsync was not installed and was automatically installed" >>"$logpath"/$logfile
 fi
 
