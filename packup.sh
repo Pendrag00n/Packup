@@ -19,7 +19,7 @@
 backuppath="/var/packup"                  # Path where the backup will be stored. You can use a remote path by using the format //ip/share
 logpath="/home/$SUDO_USER"                # Path to the log file
 logfile="packup.log"                      # Name of the log file
-files="/etc/ /home/$SUDO_USER/Documents/" # Enter files/folders separated by a space
+files=(/etc /home/$SUDO_USER/Documents/) # Enter files/folders separated by a space
 backuppermission="0600"                   # Permission of the backup file (Use 4 digits)
 
 # Incremental backup variables:
@@ -93,7 +93,7 @@ if [ ${logpath: -1} = "/" ]; then
 fi
 
 # Check if the files exist
-for file in $files; do
+for file in ${files[@]}; do
     if ! test -e "$file"; then
         echo "ERROR: $file can't be located. Exiting script" >>"$logpath"/$logfile
         echo "ERROR: $file can't be located. Exiting script"
@@ -202,26 +202,26 @@ fi
 failed="false"
 if [ "$remotebackuppath" = "true" ]; then
     if [ "$incremental" = "true" ]; then
-        rsync -avz --backup --quiet --backup-dir="$mountpath" "$files" "$mountpath"/packup_"$dirname".tgz 2>"$logpath"/temp_backups_error.log
-        if ! rsync -avz --backup --quiet --backup-dir="$mountpath" "$files" "$mountpath"/packup_"$dirname".tgz; then
+        rsync -avz --backup --quiet --backup-dir="$mountpath" "${files[@]}" "$mountpath"/packup_"$dirname".tgz 2>"$logpath"/temp_backups_error.log
+        if ! rsync -avz --backup --quiet --backup-dir="$mountpath" "${files[@]}" "$mountpath"/packup_"$dirname".tgz; then
             failed="true"
         fi
     else
-        tar -czpf "$mountpath"/packup_"$dirname".tgz "$files" &>"$logpath"/temp_backups_error.log
+        tar -czpf "$mountpath"/packup_"$dirname".tgz "${files[@]}" &>"$logpath"/temp_backups_error.log
         backuppath=$mountpath
-        if ! tar -czpf "$mountpath"/packup_"$dirname".tgz "$files"; then
+        if ! tar -czpf "$mountpath"/packup_"$dirname".tgz "${files[@]}"; then
             failed="true"
         fi
     fi
 else
     if [ "$incremental" = "true" ]; then
-        rsync -avz --quiet --backup --backup-dir="$backuppath" "$files" "$backuppath"/packup_"$dirname".tgz 2>"$logpath"/temp_backups_error.log
-        if ! rsync -avz --quiet --backup --backup-dir="$backuppath" "$files" "$backuppath"/packup_"$dirname".tgz; then
+        rsync -avz --quiet --backup --backup-dir="$backuppath" "${files[@]}" "$backuppath"/packup_"$dirname".tgz 2>"$logpath"/temp_backups_error.log
+        if ! rsync -avz --quiet --backup --backup-dir="$backuppath" "${files[@]}" "$backuppath"/packup_"$dirname".tgz; then
             failed="true"
         fi
     else
-        tar -czpf "$backuppath"/packup_"$dirname".tgz "$files" &>"$logpath"/temp_backups_error.log
-        if ! tar -czpf "$backuppath"/packup_"$dirname".tgz "$files"; then
+        tar -czpf "$backuppath"/packup_"$dirname".tgz "${files[@]}" &>"$logpath"/temp_backups_error.log
+        if ! tar -czpf "$backuppath"/packup_"$dirname".tgz "${files[@]}"; then
             failed="true"
         fi
     fi
