@@ -21,9 +21,11 @@ logpath="/home/$SUDO_USER"               # Path to the log file
 logfile="packup.log"                     # Name of the log file
 files=(/etc /home/$SUDO_USER/Documents/) # Enter files/folders separated by a space
 backuppermission="0600"                  # Permission of the backup file (Use 4 digits)
+restartservices=""                       # "" To disable. Stops these services before the backup and restarts them after the backup. (Use space to separate services)
 
 # Incremental backup variables:
 incremental="false" # If set to true, the backup will be incremental and will use rsync instead of tar
+#compressincremental="false" # (Just use tar ffs) If set to true, the incremental (rsync) backup will be compressed into a tar.gz file
 
 # Send email when something goes wrong: (Make sure you have correctly set up a MTA on your system. Ex: https://www.tutorialspoint.com/configure-postfix-to-use-gmail-smtp-on-ubuntu)
 sendemail="false"                  # If set to true, an email will be sent when something goes wrong
@@ -238,11 +240,13 @@ if [ ! -d "$backuppath" ]; then
     mkdir -p "$backuppath"
 fi
 
-# Do the correct type of backup and determine if it failed or not
+#If requested, stop the services, then o the correct type of backup and determine if it failed or not
 failed="false"
-if [ "$remotebackuppath" = "true" ]; then
+if [ -n "$restartservices" ]; then
+    systemctl stop "$restartservices"
+elif [ "$remotebackuppath" = "true" ]; then
     if [ "$incremental" = "true" ]; then
-        rsync -avz --backup --quiet --backup-dir="$mountpath" "${files[@]}" "$mountpath"/packup_"$dirname".tgz 2>"$logpath"/temp_backups_error.log
+        rsync -av --backup --quiet --backup-dir="$mountpath" "${files[@]}" "$mountpath"/packup_"$dirname".tgz 2>"$logpath"/temp_backups_error.log
         if ! rsync -avz --backup --quiet --backup-dir="$mountpath" "${files[@]}" "$mountpath"/packup_"$dirname".tgz; then
             failed="true"
         fi
@@ -255,7 +259,7 @@ if [ "$remotebackuppath" = "true" ]; then
     fi
 else
     if [ "$incremental" = "true" ]; then
-        rsync -avz --quiet --backup --backup-dir="$backuppath" "${files[@]}" "$backuppath"/packup_"$dirname".tgz 2>"$logpath"/temp_backups_error.log
+        rsync -av --quiet --backup --backup-dir="$backuppath" "${files[@]}" "$backuppath"/packup_"$dirname".tgz 2>"$logpath"/temp_backups_error.log
         if ! rsync -avz --quiet --backup --backup-dir="$backuppath" "${files[@]}" "$backuppath"/packup_"$dirname".tgz; then
             failed="true"
         fi
@@ -265,6 +269,9 @@ else
             failed="true"
         fi
     fi
+fi
+if [ -n "$restartservices" ]; then
+    systemctl start "$restartservices"
 fi
 
 # Give information about the backup success or failure, set correct permissions and clean up
@@ -305,21 +312,22 @@ elif [ "$failed" = "true" ]; then
 fi
 
 # If the remote backup path is mounted, unmount it
-if [ "$remotebackuppath" = "true" ]; then
-    if [ "$unmountwhenfinished" = "true" ]; then
-        if mount | grep -q "$backuppath .*$mountpath"; then
-            umount "$mountpath"
-            echo "Unmounted remote path successfully"
-        else
-            echo "Remote path seems to be unmounted already... Skipping unmounting"
-        fi
+if [ "$remotebackuppath" = "true" ] && [ "$unmountwhenfinished" = "true" ]; then
+    if mount | grep -q "$backuppath .*$mountpath"; then
+        umount "$mountpath"
+        echo "Unmounted remote path successfully"
+    elif ! umount "$mountpath"; then
+        echo "Unmounting remote path failed, please unmount it manually"
+        ecgo "[ $logdate ]: Unmounting remote path failed, please unmount it manually" >>"$logpath"/$logfile
+    else
+        echo "Remote path seems to be unmounted already... Skipping unmounting"
     fi
 fi
 
 # If $deleteoldbackups is set to true, check for backups older than $olderthan days inside $backuppath and delete them
 if [ "$deleteoldbackups" = "true" ]; then
     echo "Deleting backups older than $olderthan days..."
-    if ! [ -n "$TERM" ]; then
+    if [ -z "$TERM" ]; then
         echo ""
         echo "Are you sure?"
         echo press Y to continue, any other key to exit
@@ -329,7 +337,7 @@ if [ "$deleteoldbackups" = "true" ]; then
             exit 0
         fi
     fi
-    find "$backuppath" -type f -name "*pdg*.tgz" -mtime +$olderthan -delete
+    find "$backuppath" -type f -name "packup_*.tgz" -maxdepth 1 -mtime +$olderthan -delete
 fi
 
 exit 0
