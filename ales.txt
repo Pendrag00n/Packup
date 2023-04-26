@@ -1,2 +1,2 @@
-username=pinformatica
-password=password
+username=user
+password=pass
