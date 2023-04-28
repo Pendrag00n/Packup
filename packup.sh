@@ -16,7 +16,7 @@
 #     (Modify accordingly)
 
 # General variables:
-backuppath="/var/packup"                 # Path where the backup will be stored. You can use a remote path by using the format //ip/share
+backuppath="/var/packup"                 # Path where the backup will be stored. //server/share for SMB remote backups. Absolute path for SSH remote backups
 logpath="/home/$SUDO_USER"               # Path to the log file
 logfile="packup.log"                     # Name of the log file
 files=(/etc /home/$SUDO_USER/Documents/) # Enter files/folders separated by a space
@@ -25,7 +25,6 @@ restartservices=""                       # "" To disable. Stops these services b
 
 # Incremental backup variables:
 incremental="false" # If set to true, the backup will be incremental and will use rsync instead of tar
-#compressincremental="false" # (Just use tar ffs) If set to true, the incremental (rsync) backup will be compressed into a tar.gz file
 
 # Send email when something goes wrong: (Make sure you have correctly set up a MTA on your system. Ex: https://www.tutorialspoint.com/configure-postfix-to-use-gmail-smtp-on-ubuntu)
 sendemail="false"                  # If set to true, an email will be sent when something goes wrong
@@ -34,9 +33,13 @@ subject="BACKUP FAILED!"           # Subject of the email
 sendonsuccess="false"              # If set to true, an email will be sent when the backup is finished
 
 # Remote backup variables:
-mountpath="/home/$SUDO_USER/packuptmp" # This variable is only used if backup up to a remote location
-mountport="445"                        # Default SMB/CIFS port
-unmountwhenfinished="true"             # If set to true, the remote path will be unmounted when the backup is finished
+remotebackup="true"                       # If set to true, the backup will be stored on a remote location
+method="rsync"                            # (rsync or smb) Method used to backup to a remote location
+port="22"                                 # Default SMB/CIFS port is 445. Default SSH port is 22
+SMBmountpath="/home/$SUDO_USER/packuptmp" # This variable is only used if backup up to a SMB remote location
+SMBunmountwhenfinished="true"             # If set to true, the remote path will be unmounted when the backup is finished
+SSHusername="julio"                       # Username used to connect to the remote server
+SSHip="192.168.117.127"                   # IP address of the remote server
 
 # Delete old backups:
 deleteoldbackups="false" # If set to true, old backups will be deleted
@@ -44,9 +47,22 @@ olderthan="90"           # (Expressed in days) If $deleteoldbackups is set to tr
 
 #/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\
 
-# Variables used for formatting the time and date
-dirname=$(date +%d-%m-%Y_%H-%M-%S)
+# Variables used for formatting the time and date:
+filetail=$(date +%d-%m-%Y_%H-%M-%S)
 logdate=$(date +%d-%m-%Y)
+
+# Other variables:
+BASEDIR=$(dirname $0) # Path to the directory where the script is located
+
+# check if script is being ran as sudo
+if [ "$EUID" -ne 0 ]; then
+    echo "ERROR: Please run as root" >>"$logpath"/$logfile
+    echo "ERROR: Please run as root"
+    if [ $sendemail = "true" ]; then
+        echo "Backup has failed! (Please run as root) Check $logpath/$logfile for the full log!" | mail -s "$subject" "$destination"
+    fi
+    exit 1
+fi
 
 # Test if the log path and log file exists
 if [ ! -d "$logpath" ]; then
@@ -58,7 +74,7 @@ fi
 
 # Test if boolean variables are set to true or false
 if [ "$incremental" = "true" ]; then
-    dirname="inc"
+    filetail="inc"
 elif ! [ "$incremental" = "false" ]; then
     echo "ERROR: $incremental is not a valid value for incremental (true/false). Exiting script..." >>"$logpath"/$logfile
     echo "ERROR: $incremental is not a valid value for incremental (true/false). Exiting script..."
@@ -67,27 +83,26 @@ elif ! [ "$incremental" = "false" ]; then
     fi
     exit 2
 fi
-# if $unmountwhenfinished is something else than true or false then set it to false
-if ! [ "$unmountwhenfinished" = "true" ] && ! [ "$unmountwhenfinished" = "false" ]; then
-    unmountwhenfinished="false"
+# if $SMBunmountwhenfinished is something else than true or false then set it to false
+if ! [ "$SMBunmountwhenfinished" = "true" ] && ! [ "$SMBunmountwhenfinished" = "false" ]; then
+    SMBunmountwhenfinished="false"
 fi
 # If $sendonsuccess is something else than true or false then set it to false
 if ! [ "$sendonsuccess" = "true" ] && ! [ "$sendonsuccess" = "false" ]; then
     sendonsuccess="false"
 fi
 
-# If $backuppath starts with // then set $remotebackuppath to true
-remotebackuppath="false"
+# If $backuppath starts with // then set $method to smb
 if [ ${backuppath:0:2} = "//" ]; then
-    remotebackuppath="true"
+    method="smb"
 fi
 # If $backuppath ends with a /, remove it.
 if [ ${backuppath: -1} = "/" ]; then
     backuppath=${backuppath::-1}
 fi
-# If $mountpath ends with a /, remove it
-if [ ${mountpath: -1} = "/" ]; then
-    mountpath=${mountpath::-1}
+# If $SMBmountpath ends with a /, remove it
+if [ ${SMBmountpath: -1} = "/" ]; then
+    SMBmountpath=${SMBmountpath::-1}
 fi
 # If $logpath ends with a /, remove it
 if [ ${logpath: -1} = "/" ]; then
@@ -141,7 +156,7 @@ else
 fi
 
 # Check if tar is installed
-if [ "$incremental" = "false" ] && ! which tar >/dev/null; then
+if which tar >/dev/null; then
     echo "tar was not installed and is being installed now"
     $install tar
     if ! $install tar; then
@@ -156,7 +171,7 @@ if [ "$incremental" = "false" ] && ! which tar >/dev/null; then
 fi
 
 # Check if rsync is installed
-if [ "$incremental" = "true" ] && ! which rsync >/dev/null; then
+if [ "$remotebackup" = "true" ] && ! which rsync >/dev/null; then
     echo "rsync was not installed and is being installed now"
     $install rsync
     if ! $install rsync; then
@@ -171,44 +186,60 @@ if [ "$incremental" = "true" ] && ! which rsync >/dev/null; then
 fi
 
 # Test credentials file (ales.txt) and mount backup path
-if [ "$remotebackuppath" = "true" ]; then
-    if [ -f ales.txt ]; then
-        chown root:root ales.txt
-        chmod 0600 ales.txt
-        # Test if the IP provided has port 445 enabled
+if [ "$remotebackup" = "true" ]; then
+
+    # Test if the IP provided has SSH/SMB running on the defined port
+    if [ "$method" = "smb" ]; then
         IP=$(echo "$backuppath" | cut -d/ -f3)
-        echo "Testing if share is up on port 445..."
-        if echo "Q" | nc -w 5 "$IP" $mountport >/dev/null; then
-            echo "Share is up on port $mountport !"
+    elif [ "$method" = "rsync" ]; then
+        IP=$SSHip
+    fi
+    echo "Testing if SSH is up on port $port..."
+    if echo "Q" | nc -w 5 "$IP" "$port" >/dev/null; then
+        echo "SSH/SMB is up on port $port !"
+    else
+        echo "Error: SSH/SMB doesn't seem to be up on port $port :( Exiting script..."
+        echo "Error: SSH/SMB doesn't seem to be up on port $port :( Exiting script..." >>"$logpath"/$logfile
+        if [ $sendemail = "true" ]; then
+            echo "Backup has failed! (SSH/SMB doesn't seem to be up on port $port) Check $logpath/$logfile for the full log!" | mail -s "$subject" "$destination"
+        fi
+        exit 2
+    fi
+
+    # Test credentials file (ales.txt) and mount backup path
+    if [ "$method" = "smb" ]; then
+        if [ -f "${BASEDIR}"ales.txt ]; then
+            chown root:root "${BASEDIR}"ales.txt
+            chmod 0600 "${BASEDIR}"ales.txt
         else
-            echo "Error: Network share doesn't seem to be up on port $mountport :( Exiting script..."
-            echo "Error: Network share doesn't seem to be up on port $mountport :( Exiting script..." >>"$logpath"/$logfile
-            if [ $sendemail = "true" ]; then
-                echo "Backup has failed! (Network share doesn't seem to be up on port $mountport) Check $logpath/$logfile for the full log!" | mail -s "$subject" "$destination"
-            fi
+            touch ales.txt
+            echo $'username=\npassword=' >"${BASEDIR}"/ales.txt
+            chown root:root "${BASEDIR}"ales.txt
+            chmod 0600 "${BASEDIR}"ales.txt
+            echo "The credentials file (ales.txt) was not found, a template has been created in the script's dir, fill it :( Exiting script"
+            echo "[ $logdate ]: The credentials file (ales.txt) was not found, a template has been created in the script's dir, fill it :( Exiting script" >>"$logpath"/$logfile
             exit 2
         fi
-
-        # Check if the mountpath exists, if not, create it.
-        if [ ! -d "$mountpath" ]; then
-            mkdir -p "$mountpath"
+        # Check if the SMBmountpath exists, if not, create it.
+        if [ ! -d "$SMBmountpath" ]; then
+            mkdir -p "$SMBmountpath"
         fi
-        chown root:root "$mountpath"
-        chmod 0600 "$mountpath"
+        chown root:root "$SMBmountpath"
+        chmod 0600 "$SMBmountpath"
         # Check if the backup path is already mounted
-        if mount | grep -q "$backuppath .*$mountpath"; then
-            echo "Drive seems to be mounted to the mountpath already!"
+        if mount | grep -q "$backuppath .*$SMBmountpath"; then
+            echo "Drive seems to be mounted to the SMBmountpath already!"
         else
-            # Mount the network drive location into the mountpath
+            # Mount the network drive location into the SMBmountpath
             echo "Mounting remote path..."
-            mount -t cifs "$backuppath" "$mountpath" -o credentials="$PWD"/ales.txt &>"$logpath"/temp_mount_error.log
+            mount -t cifs "$backuppath" "$SMBmountpath" -o credentials="$PWD"/ales.txt &>"$logpath"/temp_mount_error.log
             # if temp_mount_error.log exists, change it's permissions to 0600
             if [ -f "$logpath"/temp_mount_error.log ]; then
                 chown root:root "$logpath"/temp_mount_error.log
                 chmod 0600 "$logpath"/temp_mount_error.log
             fi
             sleep 1 # Should work without this line
-            if ! mount -t cifs "$backuppath" "$mountpath" -o credentials="$PWD"/ales.txt; then
+            if ! mount -t cifs "$backuppath" "$SMBmountpath" -o credentials="$PWD"/ales.txt; then
                 echo "The remote path could not be mounted :( Exiting script"
                 {
                     echo "[ $logdate ]: The remote path could not be mounted :( Exiting script"
@@ -220,19 +251,11 @@ if [ "$remotebackuppath" = "true" ]; then
                 fi
                 exit 2
             fi
-
             # If temp_mount_error.log is not empty, delete it
             if [ -s "$logpath"/temp_mount_error.log ]; then
                 rm "$logpath"/temp_mount_error.log
             fi
         fi
-    else
-        echo "The credentials file (ales.txt) was not found, place it alongside this script :( Exiting script"
-        echo "[ $logdate ]: The credentials file (ales.txt) was not found, place it alongside this script :( Exiting script" >>"$logpath"/$logfile
-        if [ $sendemail = "true" ]; then
-            echo "Backup has failed! (Credentials file not found) Check $logpath/$logfile for the full log!" | mail -s "$subject" "$destination"
-        fi
-        exit 2
     fi
 fi
 
@@ -240,50 +263,73 @@ if [ ! -d "$backuppath" ]; then
     mkdir -p "$backuppath"
 fi
 
-#If requested, stop the services, then o the correct type of backup and determine if it failed or not
+#If requested, stop the services, then do the correct type of backup and determine if it failed or not
 failed="false"
 if [ -n "$restartservices" ]; then
     systemctl stop "$restartservices"
 fi
-if [ "$remotebackuppath" = "true" ]; then
+if [ "$remotebackup" = "true" ]; then
     if [ "$incremental" = "true" ]; then
-        rsync -av --backup --quiet --backup-dir="$mountpath" "${files[@]}" "$mountpath"/packup_"$dirname".tgz 2>"$logpath"/temp_backups_error.log
-        if ! rsync -avz --backup --quiet --backup-dir="$mountpath" "${files[@]}" "$mountpath"/packup_"$dirname".tgz; then
-            failed="true"
+        if [ $method = "rsync" ]; then
+            rsync -avz --link-dest="$backuppath" -e ssh "${files[@]}" $SSHusername@$SSHip:/"$backuppath" 2>"$logpath"/temp_backups_error.log
+            if ! rsync -avz --link-dest="$backuppath/$filetail" -e ssh "${files[@]}" $SSHusername@$SSHip:/"$backuppath/$filetail"; then
+                failed="true"
+            fi
         fi
-    else
-        tar -czpf "$mountpath"/packup_"$dirname".tgz "${files[@]}" &>"$logpath"/temp_backups_error.log
-        backuppath=$mountpath
-        if ! tar -czpf "$mountpath"/packup_"$dirname".tgz "${files[@]}"; then
+        if [ $method = "smb" ]; then
+            tar -czpf "$SMBmountpath"/packup_"$filetail".tgz -g "$backuppath"/packup-incremental-data "${files[@]}" &>"$logpath"/temp_backups_error.log
+            if ! tar -czpf "$SMBmountpath"/packup_"$filetail".tgz "${files[@]}"; then
+                failed="true"
+            fi
+        fi
+    fi
+    if [ "$incremental" = "false" ]; then
+        if [ $method = "rsync" ]; then
+            rsync -av --quiet "${files[@]}" "$SMBmountpath"/packup_"$filetail".tgz 2>"$logpath"/temp_backups_error.log
+            if ! rsync -avz --quiet "${files[@]}" "$SMBmountpath"/packup_"$filetail".tgz; then
+                failed="true"
+            fi
+        fi
+        if [ $method = "smb" ]; then
+            tar -czpf "$SMBmountpath"/packup_"$filetail".tgz "${files[@]}" &>"$logpath"/temp_backups_error.log
+            if ! tar -czpf "$SMBmountpath"/packup_"$filetail".tgz "${files[@]}"; then
+                failed="true"
+            fi
+        fi
+    fi
+fi
+if [ "$remotebackup" = "false" ]; then
+    if [ "$incremental" = "true" ]; then
+        tar -czpf "$backuppath"/packup_inc_"$filetail".tgz -g "$backuppath"/packup-incremental-data "${files[@]}" &>"$logpath"/temp_backups_error.log
+        if ! tar -czpf "$backuppath"/packup_inc_"$filetail".tgz -g "$backuppath"/packup-incremental-data "${files[@]}"; then
             failed="true"
         fi
     fi
-else
-    if [ "$incremental" = "true" ]; then
-        rsync -av --quiet --backup --backup-dir="$backuppath" "${files[@]}" "$backuppath"/packup_"$dirname".tgz 2>"$logpath"/temp_backups_error.log
-        if ! rsync -avz --quiet --backup --backup-dir="$backuppath" "${files[@]}" "$backuppath"/packup_"$dirname".tgz; then
-            failed="true"
-        fi
-    else
-        tar -czpf "$backuppath"/packup_"$dirname".tgz "${files[@]}" &>"$logpath"/temp_backups_error.log
-        if ! tar -czpf "$backuppath"/packup_"$dirname".tgz "${files[@]}"; then
+    if [ "$incremental" = "false" ]; then
+        tar -czpf "$backuppath"/packup_"$filetail".tgz "${files[@]}" &>"$logpath"/temp_backups_error.log
+        if ! tar -czpf "$backuppath"/packup_"$filetail".tgz "${files[@]}"; then
             failed="true"
         fi
     fi
 fi
+
 if [ -n "$restartservices" ]; then
     systemctl start "$restartservices"
 fi
 
 # Give information about the backup success or failure, set correct permissions and clean up
 if [ "$failed" = "false" ]; then
-    chmod $backuppermission "$backuppath"/packup_"$dirname".tgz
-    echo "packup_$dirname.tgz was created in $backuppath (Took $SECONDS seconds and weighs $(du -sh "$backuppath"/packup_"$dirname".tgz | awk '{print $1}'))"
-    echo "[ $logdate ]: packup_$dirname.tgz was created in $backuppath (Took $SECONDS seconds and weighs $(du -sh "$backuppath"/packup_"$dirname".tgz | awk '{print $1}'))" >>"$logpath"/$logfile
-    chown root:root "$backuppath"/packup_"$dirname".tgz
-    chmod 600 "$backuppath"/packup_"$dirname".tgz
+    chmod $backuppermission "$backuppath"/packup_"$filetail".tgz
+    echo "packup_$filetail.tgz was created in $backuppath (Took $SECONDS seconds and weighs $(du -sh "$backuppath"/packup_"$filetail".tgz | awk '{print $1}'))"
+    echo "[ $logdate ]: packup_$filetail.tgz was created in $backuppath (Took $SECONDS seconds and weighs $(du -sh "$backuppath"/packup_"$filetail".tgz | awk '{print $1}'))" >>"$logpath"/$logfile
+    chown root:root "$backuppath"/packup_"$filetail".tgz
+    chmod 600 "$backuppath"/packup_"$filetail".tgz
+    if [ $remotebackup = false ] && [ "$incremental" = "true" ]; then
+        chown root:root "$backuppath"/packup-incremental-data
+        chmod 600 "$backuppath"/packup-incremental-data
+    fi
     if [ "$sendonsuccess" = "true" ]; then
-        echo "Backup has finished successfully on $(date | cut -d " " -f 1-4)! Took $SECONDS seconds and weighs $(du -sh "$backuppath"/packup_"$dirname".tgz | awk '{print $1}')) " | mail -s "Backup Finished!" "$destination"
+        echo "Backup has finished successfully on $(date | cut -d " " -f 1-4)! Took $SECONDS seconds and weighs $(du -sh "$backuppath"/packup_"$filetail".tgz | awk '{print $1}')) " | mail -s "Backup Finished!" "$destination"
     fi
 elif [ "$failed" = "true" ]; then
     echo "Backup exited with errors and the zipfile was deleted (Compression failed) :("
@@ -293,8 +339,8 @@ elif [ "$failed" = "true" ]; then
     fi
 
     # Remove incomplete backup
-    if [ -f "$backuppath"/packup_"$dirname".tgz ]; then
-        rm -rf "$backuppath"/packup_"$dirname".tgz
+    if [ -f "$backuppath"/packup_"$filetail".tgz ]; then
+        rm -rf "$backuppath"/packup_"$filetail".tgz
     fi
 
     # Send tar errors to the log file
@@ -313,11 +359,11 @@ elif [ "$failed" = "true" ]; then
 fi
 
 # If the remote backup path is mounted, unmount it
-if [ "$remotebackuppath" = "true" ] && [ "$unmountwhenfinished" = "true" ]; then
-    if mount | grep -q "$backuppath .*$mountpath"; then
-        umount "$mountpath"
+if [ "$remotebackuppath" = "true" ] && [ "$SMBunmountwhenfinished" = "true" ]; then
+    if mount | grep -q "$backuppath .*$SMBmountpath"; then
+        umount "$SMBmountpath"
         echo "Unmounted remote path successfully"
-    elif ! umount "$mountpath"; then
+    elif ! umount "$SMBmountpath"; then
         echo "Unmounting remote path failed, please unmount it manually"
         ecgo "[ $logdate ]: Unmounting remote path failed, please unmount it manually" >>"$logpath"/$logfile
     else
