@@ -16,15 +16,15 @@
 #     (Modify accordingly)
 
 # General variables:
-backuppath="/var/packup"                 # Path where the backup will be stored. //server/share for SMB remote backups. Absolute path for SSH remote backups
-logpath="/home/$SUDO_USER"               # Path to the log file
-logfile="packup.log"                     # Name of the log file
-files=(/etc /home/$SUDO_USER/Documents/) # Enter files/folders separated by a space
-backuppermission="0600"                  # Permission of the backup file (Use 4 digits)
-restartservices=""                       # "" To disable. Stops these services before the backup and restarts them after the backup. (Use space to separate services)
+backuppath="/var/packup"                # Path where the backup will be stored. //server/share for SMB remote backups. Absolute path for SSH remote backups
+logpath="/home/julio"                   # Path to the log file
+logfile="packup.log"                    # Name of the log file
+files=(/etc/ /bin/ /home/julio/Videos/) # Enter files/folders separated by a space
+backuppermission="0600"                 # Permission of the backup file (Use 4 digits)
+restartservices=""                      # "" To disable. Stops these services before the backup and restarts them after the backup. (Use space to separate services)
 
 # Incremental backup variables:
-incremental="false" # If set to true, the backup will be incremental and will use rsync instead of tar
+incremental="true" # If set to true, the backup will be incremental and will use rsync instead of tar
 
 # Send email when something goes wrong: (Make sure you have correctly set up a MTA on your system. Ex: https://www.tutorialspoint.com/configure-postfix-to-use-gmail-smtp-on-ubuntu)
 sendemail="false"                  # If set to true, an email will be sent when something goes wrong
@@ -39,7 +39,7 @@ port="22"                                 # Default SMB/CIFS port is 445. Defaul
 SMBmountpath="/home/$SUDO_USER/packuptmp" # This variable is only used if backup up to a SMB remote location
 SMBunmountwhenfinished="true"             # If set to true, the remote path will be unmounted when the backup is finished
 SSHusername="julio"                       # Username used to connect to the remote server
-SSHip="192.168.117.127"                   # IP address of the remote server
+SSHip="192.168.117.137"                   # IP address of the remote server
 
 # Delete old backups:
 deleteoldbackups="false" # If set to true, old backups will be deleted
@@ -156,7 +156,7 @@ else
 fi
 
 # Check if tar is installed
-if which tar >/dev/null; then
+if ! which tar >/dev/null; then
     echo "tar was not installed and is being installed now"
     $install tar
     if ! $install tar; then
@@ -271,8 +271,9 @@ fi
 if [ "$remotebackup" = "true" ]; then
     if [ "$incremental" = "true" ]; then
         if [ $method = "rsync" ]; then
-            rsync -avz --link-dest="$backuppath" -e ssh "${files[@]}" $SSHusername@$SSHip:/"$backuppath" 2>"$logpath"/temp_backups_error.log
-            if ! rsync -avz --link-dest="$backuppath/$filetail" -e ssh "${files[@]}" $SSHusername@$SSHip:/"$backuppath/$filetail"; then
+            lastbackuppath=$(ls -td $backuppath/packup_* | head -n 1)
+            rsync -avz --link-dest="$lastbackuppath" "${files[@]}" $SSHusername@$SSHip:"$backuppath"/packup_inc"$filetail"/ 2>"$logpath"/temp_backups_error.log
+            if ! rsync -avz --link-dest="$lastbackuppath" "${files[@]}" $SSHusername@$SSHip:"$backuppath"/packup_inc"$filetail"/; then
                 failed="true"
             fi
         fi
@@ -285,8 +286,9 @@ if [ "$remotebackup" = "true" ]; then
     fi
     if [ "$incremental" = "false" ]; then
         if [ $method = "rsync" ]; then
-            rsync -av --quiet "${files[@]}" "$SMBmountpath"/packup_"$filetail".tgz 2>"$logpath"/temp_backups_error.log
-            if ! rsync -avz --quiet "${files[@]}" "$SMBmountpath"/packup_"$filetail".tgz; then
+            rsync -avz --relative "${files[@]}" $SSHusername@$SSHip:"$backuppath"/packup_"$filetail" 2>"$logpath"/temp_backups_error.log | tail -1 | cut -d " " -f 4 >"$logpath"/backup_size.log && rsize=$(cat backup_size.log)
+            rm "$logpath"/backup_size.log
+            if ! rsync -avz --relative "${files[@]}" $SSHusername@$SSHip:"$backuppath"/packup_"$filetail"; then
                 failed="true"
             fi
         fi
@@ -318,31 +320,44 @@ if [ -n "$restartservices" ]; then
 fi
 
 # Give information about the backup success or failure, set correct permissions and clean up
-if [ "$failed" = "false" ]; then
+if [ "$failed" = "false" ] && [ "$remotebackup" = "false" ]; then
     chmod $backuppermission "$backuppath"/packup_"$filetail".tgz
     echo "packup_$filetail.tgz was created in $backuppath (Took $SECONDS seconds and weighs $(du -sh "$backuppath"/packup_"$filetail".tgz | awk '{print $1}'))"
     echo "[ $logdate ]: packup_$filetail.tgz was created in $backuppath (Took $SECONDS seconds and weighs $(du -sh "$backuppath"/packup_"$filetail".tgz | awk '{print $1}'))" >>"$logpath"/$logfile
     chown root:root "$backuppath"/packup_"$filetail".tgz
     chmod 600 "$backuppath"/packup_"$filetail".tgz
-    if [ $remotebackup = false ] && [ "$incremental" = "true" ]; then
-        chown root:root "$backuppath"/packup-incremental-data
-        chmod 600 "$backuppath"/packup-incremental-data
-    fi
-    if [ "$sendonsuccess" = "true" ]; then
+fi
+
+if [ "$failed" = "false" ] && [ "$remotebackup" = "true" ]; then # Fix filesize (and permissions)
+    echo "packup_$filetail.tgz was created in $backuppath (Took $SECONDS seconds and weighs $rsize)"
+    echo "[ $logdate ]: packup_$filetail.tgz was created in $backuppath (Took $SECONDS seconds and weighs $rsize)" >>"$logpath"/$logfile
+fi
+
+if [ $remotebackup = "false" ] && [ "$incremental" = "true" ]; then
+    chown root:root "$backuppath"/packup-incremental-data
+    chmod 600 "$backuppath"/packup-incremental-data
+fi
+if [ "$sendonsuccess" = "true" ]; then
+    if [ "$remotebackup" = "true" ]; then
+        echo "Backup has finished successfully on $(date | cut -d " " -f 1-4)! Took $SECONDS seconds and weighs $rsize" | mail -s "Backup Finished!" "$destination"
+    else
         echo "Backup has finished successfully on $(date | cut -d " " -f 1-4)! Took $SECONDS seconds and weighs $(du -sh "$backuppath"/packup_"$filetail".tgz | awk '{print $1}')) " | mail -s "Backup Finished!" "$destination"
     fi
-elif [ "$failed" = "true" ]; then
+fi
+
+if [ "$failed" = "true" ]; then
     echo "Backup exited with errors and the zipfile was deleted (Compression failed) :("
     echo "[ $logdate ]: Backup exited with errors and the tarfile was deleted (Compression failed) :(" >>"$logpath"/$logfile
     if [ $sendemail = "true" ]; then
         echo "Backup has failed! (Compression failed) Check $logpath/$logfile for the full log!" | mail -s "$subject" "$destination"
     fi
+    if [ "$remotebackup" = "false" ]; then
+        # Remove incomplete backup
+        if [ -f "$backuppath"/packup_"$filetail".tgz ]; then
+            rm -rf "$backuppath"/packup_"$filetail".tgz
+        fi
 
-    # Remove incomplete backup
-    if [ -f "$backuppath"/packup_"$filetail".tgz ]; then
-        rm -rf "$backuppath"/packup_"$filetail".tgz
     fi
-
     # Send tar errors to the log file
     if [ -s "$logpath"/temp_backups_error.log ]; then
         {
@@ -359,7 +374,7 @@ elif [ "$failed" = "true" ]; then
 fi
 
 # If the remote backup path is mounted, unmount it
-if [ "$remotebackuppath" = "true" ] && [ "$SMBunmountwhenfinished" = "true" ]; then
+if [ "$remotebackup" = "true" ] && [ "$SMBunmountwhenfinished" = "true" ]; then
     if mount | grep -q "$backuppath .*$SMBmountpath"; then
         umount "$SMBmountpath"
         echo "Unmounted remote path successfully"
