@@ -380,7 +380,7 @@ if [ "$remotebackup" = "true" ] && [ "$SMBunmountwhenfinished" = "true" ]; then
         echo "Unmounted remote path successfully"
     elif ! umount "$SMBmountpath"; then
         echo "Unmounting remote path failed, please unmount it manually"
-        ecgo "[ $logdate ]: Unmounting remote path failed, please unmount it manually" >>"$logpath"/$logfile
+        echo "[ $logdate ]: Unmounting remote path failed, please unmount it manually" >>"$logpath"/$logfile
     else
         echo "Remote path seems to be unmounted already... Skipping unmounting"
     fi
