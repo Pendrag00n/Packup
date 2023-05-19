@@ -194,28 +194,28 @@ if [ "$remotebackup" = "true" ]; then
     elif [ "$method" = "rsync" ]; then
         IP=$SSHip
     fi
-    echo "Testing if SSH is up on port $port..."
-    if echo "Q" | nc -w 5 "$IP" "$port" >/dev/null; then
-        echo "SSH/SMB is up on port $port !"
+    echo "Testing if SSH/SMB is up on port $port..."
+    if echo "Q" | nc -w 3 "$IP" "$port" >/dev/null; then
+        echo "SSH/SMB is up on $IP on port $port !"
     else
-        echo "Error: SSH/SMB doesn't seem to be up on port $port :( Exiting script..."
-        echo "Error: SSH/SMB doesn't seem to be up on port $port :( Exiting script..." >>"$logpath"/$logfile
+        echo "Error: SSH/SMB doesn't seem to be up on $IP on port $port :( Exiting script..."
+        echo "Error: SSH/SMB doesn't seem to be up on $IP on port $port :( Exiting script..." >>"$logpath"/$logfile
         if [ $sendemail = "true" ]; then
-            echo "Backup has failed! (SSH/SMB doesn't seem to be up on port $port) Check $logpath/$logfile for the full log!" | mail -s "$subject" "$destination"
+            echo "Backup has failed! (SSH/SMB doesn't seem to be up on $IP port $port) Check $logpath/$logfile for the full log!" | mail -s "$subject" "$destination"
         fi
         exit 2
     fi
 
     # Test credentials file (ales.txt) and mount backup path
     if [ "$method" = "smb" ]; then
-        if [ -f "${BASEDIR}"ales.txt ]; then
-            chown root:root "${BASEDIR}"ales.txt
-            chmod 0600 "${BASEDIR}"ales.txt
+        if [ -f "${BASEDIR}"/ales.txt ]; then
+            chown root:root "${BASEDIR}"/ales.txt
+            chmod 0600 "${BASEDIR}"/ales.txt
         else
             touch ales.txt
             echo $'username=\npassword=' >"${BASEDIR}"/ales.txt
-            chown root:root "${BASEDIR}"ales.txt
-            chmod 0600 "${BASEDIR}"ales.txt
+            chown root:root "${BASEDIR}"/ales.txt
+            chmod 0600 "${BASEDIR}"/ales.txt
             echo "The credentials file (ales.txt) was not found, a template has been created in the script's dir, fill it :( Exiting script"
             echo "[ $logdate ]: The credentials file (ales.txt) was not found, a template has been created in the script's dir, fill it :( Exiting script" >>"$logpath"/$logfile
             exit 2
@@ -231,6 +231,8 @@ if [ "$remotebackup" = "true" ]; then
             echo "Drive seems to be mounted to the SMBmountpath already!"
         else
             # Mount the network drive location into the SMBmountpath
+            echo "Installing cifs-utils"
+            apt install cifs-utils -y
             echo "Mounting remote path..."
             mount -t cifs "$backuppath" "$SMBmountpath" -o credentials="$PWD"/ales.txt &>"$logpath"/temp_mount_error.log
             # if temp_mount_error.log exists, change it's permissions to 0600
